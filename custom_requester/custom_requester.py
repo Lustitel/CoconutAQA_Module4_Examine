@@ -1,0 +1,84 @@
+import json
+import logging
+import os
+import time
+
+class CustomRequester:
+    base_headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    def __init__(self, session, base_url):
+        self.session = session
+        self.base_url = base_url
+        self.logger = logging.getLogger(__name__)
+
+    def send_request(self, method, endpoint,  data=None, params=None, expected_status=200, need_logging=True, **kwargs):
+        url = f"{self.base_url}{endpoint}"
+        start_time = time.time()
+        response = self.session.request(method, url, json=data, params=params, **kwargs)
+        execution_time = round((time.time() - start_time)*1000, 2)
+
+        if need_logging:
+            self.log_request_and_response(response, execution_time)
+
+        if response.status_code != expected_status:
+            raise ValueError(
+                f"Unexpected status code: {response.status_code}. Expected: {expected_status}"
+            )
+
+        return response
+
+    def log_request_and_response(self, response, execution_time=None):
+        try:
+            request = response.request
+            GREEN = '\033[32m'
+            RED = '\033[31m'
+            RESET = '\033[0m'
+
+            full_test_name = f"pytest {os.environ.get('PYTEST_CURRENT_TEST', '').replace(' (call)', '')}"
+            headers = " \\\n".join([f"-H '{header}: {value}'" for header, value in request.headers.items()])
+
+            body = ""
+            if hasattr(request, 'body') and request.body is not None:
+                if isinstance(request.body, bytes):
+                    body = request.body.decode('utf-8')
+                elif isinstance(request.body, str):
+                    body = request.body
+                body = f"-d '{body}' \n" if body and body != '{}' else ''
+
+            self.logger.info(f"\n{'=' * 40} REQUEST {'=' * 40}")
+            self.logger.info(
+                f"{GREEN}{full_test_name}{RESET}\n"
+                f"curl -X {request.method} '{request.url}' \\\n"
+                f"{headers} \\\n"
+                f"{body}"
+            )
+
+            response_status = response.status_code
+            time_info = f"{execution_time}" if execution_time is not None else ""
+            is_success = response.ok
+            response_data = response.text
+
+            try:
+                response_data = json.dumps(json.loads(response.text), indent=4, ensure_ascii=False)
+            except json.JSONDecodeError:
+                pass
+
+            self.logger.info(f"\n{'=' * 40} RESPONSE {'=' * 40}")
+            if not is_success:
+                self.logger.info(
+                    f"\tSTATUS_CODE: {RED}{response_status}{RESET}\n"
+                    f"\tRESPONSE_TIME: {time_info} ms\n"
+                    f"\tDATA: {RED}{response_data}{RESET}"
+                )
+            else:
+                self.logger.info(
+                    f"\tSTATUS_CODE: {GREEN}{response_status}{RESET}\n"
+                    f"\tRESPONSE_TIME: {time_info} ms\n"
+                    f"\tDATA:\n{response_data}"
+                )
+            self.logger.info(f"{'=' * 80}\n")
+        except Exception as e:
+            self.logger.error(f"\nLogging failed: {type(e)} - {e}")
