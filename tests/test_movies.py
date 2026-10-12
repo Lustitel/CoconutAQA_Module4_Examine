@@ -1,7 +1,7 @@
 from utils.number_type import is_int, is_number, is_str
 import pytest
 
-class TestGetMoviesPositive:
+class TestGetMovies:
 
     @pytest.mark.api
     @pytest.mark.smoke
@@ -62,6 +62,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_no_filter(self, api_manager):
         test_filters = {}
         response = api_manager.movies_api.get_movies(params=test_filters)
@@ -73,6 +74,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_page_size(self, api_manager):
         page_size = 1
         test_filters = {"pageSize": page_size}
@@ -85,6 +87,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_page_number(self, api_manager):
         page_number = 10
         test_filters = {"page": page_number}
@@ -96,6 +99,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_price(self, api_manager):
         min_price = 1
         max_price = 2000
@@ -109,6 +113,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_locations(self, api_manager):
         locations = "MSK"
         test_filters = {"locations": locations}
@@ -121,6 +126,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_published_true(self, api_manager):
         response_data = api_manager.movies_api.get_movies(params={"published": "true"}).json()
         movies = response_data["movies"]
@@ -131,6 +137,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_published_false(self, api_manager):
         response_data = api_manager.movies_api.get_movies(params={"published": "false"}).json()
         movies = response_data["movies"]
@@ -141,6 +148,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_genre_id(self, api_manager):
         genre_id = 5
         response_data = api_manager.movies_api.get_movies(params={"genreId": genre_id}).json()
@@ -152,6 +160,7 @@ class TestGetMoviesFiltersPositive:
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_show_order_asc(self, api_manager):
         created_at = 'asc'
         response_data = api_manager.movies_api.get_movies(params={"createdAt": created_at}).json()
@@ -161,10 +170,10 @@ class TestGetMoviesFiltersPositive:
         assert len(movies) > 0, f"Фильмы не найдены"
         assert movies_id == sorted(movies_id)
 
-
     @pytest.mark.api
     @pytest.mark.smoke
     @pytest.mark.filters
+    @pytest.mark.positive
     def test_filter_show_order_desc(self, api_manager):
         created_at = 'desc'
         response_data = api_manager.movies_api.get_movies(params={"createdAt": created_at}).json()
@@ -174,9 +183,109 @@ class TestGetMoviesFiltersPositive:
         assert len(movies) > 0, f"Фильмы не найдены"
         assert movies_id == sorted(movies_id, reverse=True)
 
-class TestGetMoviesNegative:
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.positive
+    def test_max_price_max_value(self, api_manager):
+        max_int = 2**31-1
+        response_data = api_manager.movies_api.get_movies(params={"maxPrice": max_int})
+
+        assert response_data.json() != {'error': 'Bad Request', 'message': 'Некорректные данные', 'statusCode': 400}
+        assert len(response_data.json()["movies"]) > 0
+
+class TestGetMoviesFiltersNegative:
 
     @pytest.mark.api
     @pytest.mark.smoke
-    def test_missing_fields(self, api_manager):
-        pass
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_page_size_min_boundary(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"pageSize": 0}, expected_status=400)
+
+        assert response_data.json() == {'message': ['Поле pageSize имеет минимальную величину 1'], 'error': 'Bad Request', 'statusCode': 400}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_page_size_invalid_value(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"pageSize": -1}, expected_status=400)
+
+        assert response_data.json() == {'message': ['Поле pageSize имеет минимальную величину 1'], 'error': 'Bad Request', 'statusCode': 400}
+
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_page_size_max_boundary(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"pageSize": 21}, expected_status=400)
+
+        assert response_data.json() == {'message': ['Поле pageSize имеет максимальную величину 20'], 'error': 'Bad Request', 'statusCode': 400}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_min_price_min_boundary(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"minPrice": 0}, expected_status=400)
+
+        assert response_data.json() == {'message': ['Поле minPrice имеет минимальную величину 1'], 'error': 'Bad Request', 'statusCode': 400}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_min_price_max_boundary_without_max_price(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"minPrice": 1000}, expected_status=400)
+
+        assert response_data.json() == {
+                                          "message": "minPrice must be less than maxPrice",
+                                          "error": "Bad Request",
+                                          "statusCode": 400
+                                        }, "Значение minPrice не должно превышать или равняться дефолтному значению maxPrice=1000"
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_max_price_min_boundary(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"maxPrice": 0}, expected_status=400)
+
+        assert response_data.json() == {'message': 'minPrice must be less than maxPrice', 'error': 'Bad Request', 'statusCode': 400}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_max_price_less_min_price(self, api_manager):
+        response_data = api_manager.movies_api.get_movies(params={"minPrice": 2, "maxPrice": 1}, expected_status=400)
+
+        assert response_data.json() == {'message': 'minPrice must be less than maxPrice', 'error': 'Bad Request', 'statusCode': 400}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.filters
+    @pytest.mark.negative
+    def test_max_price_max_boundary(self, api_manager):
+        over_max_int = 2**31
+        response_data = api_manager.movies_api.get_movies(params={"maxPrice": over_max_int}, expected_status=400)
+
+        assert response_data.json() == {'error': 'Bad Request', 'message': 'Некорректные данные', 'statusCode': 400}
+
+class TestCreateMovies:
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    def test_create_film(self, api_manager, auth_super_admin, test_film):
+        movies_necessary_keys = {
+                                    "id", "name","price",
+                                    "description", "imageUrl","location",
+                                    "published","genreId","genre",
+                                    "createdAt","rating"
+                                    }
+        response = api_manager.movies_api.create_movie(test_film)
+        response_data = response.json()
+
+        assert movies_necessary_keys.issubset(response_data.keys()), "Отсутствуют необходимые поля в 'movies'"

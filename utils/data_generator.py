@@ -30,3 +30,19 @@ class DataGenerator:
     @staticmethod
     def generate_review():
        return fake.sentence(5).rstrip('.')
+
+    @staticmethod
+    def generate_random_password():
+        return fake.password()
+
+    @staticmethod
+    def generate_random_email():
+        return fake.email()
+
+    @staticmethod
+    def generate_firstname():
+        return fake.first_name()
+
+    @staticmethod
+    def generate_lastname():
+        return fake.last_name()
