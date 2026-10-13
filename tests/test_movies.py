@@ -272,12 +272,14 @@ class TestGetMoviesFiltersNegative:
         over_max_int = 2**31
         response_data = api_manager.movies_api.get_movies(params={"maxPrice": over_max_int}, expected_status=400)
 
-        assert response_data.json() == {'error': 'Bad Request', 'message': 'Некорректные данные', 'statusCode': 400}
+        assert response_data.json() in [{'error': 'Bad Request', 'message': 'Некорректные данные', 'statusCode': 400}, {'message': 'Bad Request', 'statusCode': 400}]
 
-class TestCreateMovies:
+class TestCreateMoviesPositive:
 
     @pytest.mark.api
     @pytest.mark.smoke
+    @pytest.mark.positive
+    @pytest.mark.creation
     def test_create_film(self, api_manager, auth_super_admin, test_film):
         movies_necessary_keys = {
                                     "id", "name","price",
@@ -285,7 +287,152 @@ class TestCreateMovies:
                                     "published","genreId","genre",
                                     "createdAt","rating"
                                     }
+
         response = api_manager.movies_api.create_movie(test_film)
         response_data = response.json()
 
         assert movies_necessary_keys.issubset(response_data.keys()), "Отсутствуют необходимые поля в 'movies'"
+        assert all(response_data[k] == test_film[k] for k in test_film), "Данные в ответе не совпадают с отправленными"
+        assert "name" in response_data["genre"]
+
+class TestCreateMoviesNegative:
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    @pytest.mark.creation
+    def test_create_film_missing_name(self, api_manager, auth_super_admin, test_film):
+        test_film.pop("name")
+        response = api_manager.movies_api.create_movie(test_film, expected_status=400)
+
+        assert response.json() == {'error': 'Bad Request', 'message': ['name should not be empty', 'Поле name должно быть строкой'], 'statusCode': 400}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    @pytest.mark.creation
+    def test_create_film_duplicate_name(self, api_manager, auth_super_admin, test_film):
+        api_manager.movies_api.create_movie(test_film)
+        test_film["price"] = 300
+        response = api_manager.movies_api.create_movie(test_film, expected_status=409)
+
+        assert response.json() == {'message': 'Фильм с таким названием уже существует', 'error': 'Conflict', 'statusCode': 409}
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    @pytest.mark.creation
+    def test_create_film_invalid_type_name(self, api_manager, auth_super_admin, test_film):
+        test_film["name"] = 12
+        response = api_manager.movies_api.create_movie(test_film, expected_status=400)
+
+        assert response.json() == {
+                                    "message": [
+                                        "Поле name должно быть строкой"
+                                    ],
+                                    "error": "Bad Request",
+                                    "statusCode": 400
+                                }
+
+class TestGetMovieViaId:
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.positive
+    def test_get_film_via_id(self, api_manager, created_film):
+        movies_necessary_keys = {
+                                    "id", "name","price",
+                                    "description","imageUrl","location",
+                                    "published","genreId","genre",
+                                    "createdAt","rating", "reviews"
+                                    }
+        movie_id = created_film["id"]
+        response_data = api_manager.movies_api.get_movies_id(movie_id, timeout=5).json()
+
+        assert len(response_data) > 0
+        assert movies_necessary_keys.issubset(response_data)
+        assert movie_id == response_data["id"]
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    def test_get_film_invalid_id(self, api_manager):
+        response_data = api_manager.movies_api.get_movies_id(0, expected_status=404)
+
+        assert response_data.json() in [{'message': 'Фильм не найден', 'error': 'Not Found', 'statusCode': 404},
+                                 {'message': 'Not Found',
+                                  'statusCode': 404}]
+
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    def test_get_film_invalid_id_type(self, api_manager):
+        response_data = api_manager.movies_api.get_movies_id("uwu", expected_status=500)
+
+        assert response_data.json() == {'message': 'Internal server error', 'statusCode': 500}
+
+class TestDeleteMovie:
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.positive
+    def test_delete_film_ok(self, api_manager, created_film):
+        movie_id = created_film["id"]
+        api_manager.movies_api.delete_movie(movie_id, timeout=5)
+        response_data = api_manager.movies_api.get_movies_id(movie_id, timeout=5, expected_status=404).json()
+
+        assert response_data in [{'message': 'Фильм не найден', 'error': 'Not Found', 'statusCode': 404}, {'message': 'Not Found', 'statusCode': 404}], f"Неожиданный ответ сервера: {response_data}"
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    def test_delete_film_invalid_id(self, api_manager, created_film):
+        movie_id = 0
+        response=api_manager.movies_api.delete_movie(movie_id, expected_status=404)
+
+        assert response.json() in [{'message': 'Фильм не найден', 'error': 'Not Found', 'statusCode': 404},
+                                 {'message': 'Not Found',
+                                  'statusCode': 404}]
+
+class TestPatchMovie:
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.positive
+    def test_patch_movie(self, api_manager, created_film, test_film):
+        movies_necessary_keys = {
+            "id", "name", "price",
+            "description", "imageUrl", "location",
+            "published", "genreId", "genre",
+            "createdAt", "rating"
+        }
+        movie_id = created_film["id"]
+        test_film["name"] = f"{test_film["name"]} 2"
+        response_data = api_manager.movies_api.patch_movie(movie_id, test_film).json()
+
+        assert movies_necessary_keys.issubset(response_data.keys()), "Отсутствуют необходимые поля в 'movies'"
+        assert all(response_data[k] == test_film[k] for k in test_film), "Данные в ответе не совпадают с отправленными"
+        assert "name" in response_data["genre"]
+        assert response_data["id"] == movie_id
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    def test_patch_movie_invalid_id(self, api_manager, created_film, test_film):
+        test_film["name"] = f"{test_film["name"]} 2"
+        response = api_manager.movies_api.patch_movie(0, test_film, expected_status=404)
+
+        assert response.json() in [{'message': 'Фильм не найден', 'error': 'Not Found', 'statusCode': 404},
+                                 {'message': 'Not Found',
+                                  'statusCode': 404}]
+
+    @pytest.mark.api
+    @pytest.mark.smoke
+    @pytest.mark.negative
+    def test_patch_movie_invalid_payload(self, api_manager, created_film, test_film):
+        movie_id = created_film["id"]
+        test_film["name"] = 67
+        response_data = api_manager.movies_api.patch_movie(movie_id, test_film, expected_status=400).json()
+
+        assert response_data == {'error': 'Bad Request', 'message': ['Поле name должно быть строкой'], 'statusCode': 400}

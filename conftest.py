@@ -61,3 +61,9 @@ def auth_super_admin(api_manager):
     api_manager.auth_api.authenticate(email="api1@gmail.com", password="asdqwe123Q", expected_status=201)
     yield
     api_manager.auth_api._reset_headers()
+
+@pytest.fixture(scope="function")
+def created_film(api_manager, auth_super_admin, test_film):
+    response = api_manager.movies_api.create_movie(test_film)
+    return response.json()
+
